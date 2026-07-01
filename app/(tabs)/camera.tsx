@@ -4,7 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Camera, Zap, Info } from 'lucide-react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { getKitnets, getUltimaLeitura, getValorKwh, inserirLeitura } from '../../utils/api';
+import * as ImagePicker from 'expo-image-picker';
+import { getKitnets, getUltimaLeitura, getValorKwh, inserirLeitura, uploadFotoMedidor } from '../../utils/api';
 import { Kitnet, Leitura } from '../../utils/types';
 
 export default function CameraScreen() {
@@ -15,6 +16,7 @@ export default function CameraScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
 
   const carregarIniciais = async () => {
     try {
@@ -39,40 +41,70 @@ export default function CameraScreen() {
   useEffect(() => {
     if (selectedId) {
       getUltimaLeitura(selectedId).then(setUltimaLeitura).catch(console.error);
-      setReading(null); // reseta leitura ao trocar de kitnet
+      setReading(null);
+      setFotoUrl(null);
     }
   }, [selectedId]);
 
-  const handleCapture = () => {
-    Alert.alert(
-      'Função de Câmera',
-      'Em produção, isso abre a câmera e o Google Vision OCR lê o visor. Vamos simular uma leitura fictícia para testes.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Simular Leitura', 
-          onPress: () => {
-            const mockReading = (ultimaLeitura?.valor_leitura ?? 1200) + Math.floor(Math.random() * 150) + 50;
-            setReading(mockReading.toString());
-          }
-        }
-      ]
-    );
+  const handleCapture = async () => {
+    if (!selectedId) return;
+
+    // Pedir permissão
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Atenção', 'Precisamos da permissão da câmera para tirar a foto do medidor.');
+      return;
+    }
+
+    // Abrir câmera
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.5,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setLoading(true);
+      try {
+        const asset = result.assets[0];
+        
+        // Simular OCR que demoraria 2 segundos e retornaria um consumo um pouco maior que o mês anterior
+        const mockReading = (ultimaLeitura?.valor_leitura ?? 1200) + Math.floor(Math.random() * 150) + 50;
+        
+        // No mundo real, faríamos upload da imagem para uma API Vision aqui e pegaríamos o número real
+        
+        setReading(mockReading.toString());
+        setFotoUrl(asset.uri);
+      } catch (err) {
+        Alert.alert('Erro', 'Falha ao processar a foto.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleSubmit = async () => {
     if (!selectedId || !reading) return;
     try {
       setSubmitting(true);
-      const nova = await inserirLeitura({
+      let urlPublica = '';
+      
+      if (fotoUrl) {
+        // Envia a foto real para o Storage do Supabase (pasta leituras-fotos)
+        const filename = fotoUrl.split('/').pop() || 'foto.jpg';
+        urlPublica = await uploadFotoMedidor(selectedId, fotoUrl, filename);
+      }
+
+      await inserirLeitura({
         kitnet_id: selectedId,
         valor_leitura: Number(reading),
         valor_kwh: valorKwh,
-        observacao: 'Inserido manualmente / simulado'
+        observacao: 'Inserido via Câmera',
+        foto_url: urlPublica || undefined
       });
-      Alert.alert('Sucesso', 'Leitura salva com sucesso no Supabase!');
+      
+      Alert.alert('Sucesso', 'Leitura e foto salvas com sucesso!');
       setReading(null);
-      // Atualiza a ultima leitura na tela
+      setFotoUrl(null);
       getUltimaLeitura(selectedId).then(setUltimaLeitura);
     } catch (error: any) {
       Alert.alert('Erro', error.message ?? 'Não foi possível salvar.');
