@@ -28,9 +28,9 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: '#1E293B',
           backgroundColor: '#0F172A',
-          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          paddingBottom: Platform.OS === 'ios' ? 25 : 15,
           paddingTop: 10,
-          height: Platform.OS === 'ios' ? 85 : 65,
+          height: Platform.OS === 'ios' ? 90 : 75,
         },
       }}>
       <Tabs.Screen

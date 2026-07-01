@@ -5,7 +5,7 @@ import { Camera, Zap, Info } from 'lucide-react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { getKitnets, getUltimaLeitura, getValorKwh, inserirLeitura, uploadFotoMedidor } from '../../utils/api';
+import { getKitnets, getUltimaLeitura, getValorKwh, inserirLeitura, uploadFotoMedidor, extrairLeituraOCR } from '../../utils/api';
 import { Kitnet, Leitura } from '../../utils/types';
 
 export default function CameraScreen() {
@@ -66,16 +66,25 @@ export default function CameraScreen() {
       setLoading(true);
       try {
         const asset = result.assets[0];
+        const localUri = asset.uri;
+        const filename = localUri.split('/').pop() || 'foto.jpg';
         
-        // Simular OCR que demoraria 2 segundos e retornaria um consumo um pouco maior que o mês anterior
-        const mockReading = (ultimaLeitura?.valor_leitura ?? 1200) + Math.floor(Math.random() * 150) + 50;
+        // 1. Upload the image first to get a public URL for OCR
+        const urlPublica = await uploadFotoMedidor(selectedId, localUri, filename);
+        setFotoUrl(urlPublica);
+
+        // 2. Extract OCR
+        const leituraOCR = await extrairLeituraOCR(urlPublica);
         
-        // No mundo real, faríamos upload da imagem para uma API Vision aqui e pegaríamos o número real
-        
-        setReading(mockReading.toString());
-        setFotoUrl(asset.uri);
+        if (leituraOCR !== null) {
+          setReading(leituraOCR.toString());
+        } else {
+          Alert.alert('Aviso', 'Não conseguimos identificar o número na foto. Por favor, digite manualmente ou tente novamente.');
+          // You could allow manual entry here if wanted, but for now we set a fallback or null
+          setReading(null);
+        }
       } catch (err) {
-        Alert.alert('Erro', 'Falha ao processar a foto.');
+        Alert.alert('Erro', 'Falha ao processar a foto pelo OCR. Tente novamente.');
       } finally {
         setLoading(false);
       }
@@ -86,13 +95,8 @@ export default function CameraScreen() {
     if (!selectedId || !reading) return;
     try {
       setSubmitting(true);
-      let urlPublica = '';
-      
-      if (fotoUrl) {
-        // Envia a foto real para o Storage do Supabase (pasta leituras-fotos)
-        const filename = fotoUrl.split('/').pop() || 'foto.jpg';
-        urlPublica = await uploadFotoMedidor(selectedId, fotoUrl, filename);
-      }
+      // A foto já foi enviada no handleCapture
+      const urlPublica = fotoUrl || undefined;
 
       await inserirLeitura({
         kitnet_id: selectedId,

@@ -94,6 +94,46 @@ export async function uploadFotoMedidor(
   return data.publicUrl;
 }
 
+export async function extrairLeituraOCR(urlImagem: string): Promise<number | null> {
+  const ocrApiKey = process.env.EXPO_PUBLIC_OCR_API_KEY || 'helloworld';
+  
+  try {
+    const formData = new FormData();
+    formData.append('url', urlImagem);
+    formData.append('language', 'eng');
+    formData.append('isOverlayRequired', 'false');
+    formData.append('OCREngine', '2'); // Engine 2 is better for numbers
+
+    const response = await fetch('https://api.ocr.space/parse/image', {
+      method: 'POST',
+      headers: {
+        'apikey': ocrApiKey,
+      },
+      body: formData,
+    });
+
+    const result = await response.json();
+    
+    if (result.IsErroredOnProcessing || !result.ParsedResults || result.ParsedResults.length === 0) {
+      throw new Error('Falha no OCR');
+    }
+
+    const textoLido = result.ParsedResults[0].ParsedText;
+    
+    // Extrai apenas os números do texto (pois os medidores tem kWh, letras e sujeiras)
+    const numeros = textoLido.replace(/\D/g, '');
+    
+    if (numeros.length > 0) {
+      return parseInt(numeros, 10);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Erro OCR:', error);
+    return null;
+  }
+}
+
 // ============================================================
 // CONFIG DO SISTEMA
 // ============================================================
