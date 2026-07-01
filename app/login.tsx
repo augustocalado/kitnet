@@ -45,7 +45,7 @@ export default function LoginScreen() {
             >
               <Zap size={36} color="#FFFFFF" />
             </LinearGradient>
-            <Text style={styles.appName}>Kitnet Energia</Text>
+            <Text style={styles.appName}>Minha Kitnet</Text>
             <Text style={styles.appSubtitle}>Controle de consumo de energia</Text>
           </View>
 
@@ -118,7 +118,7 @@ export default function LoginScreen() {
 
           {/* Rodapé */}
           <Text style={styles.footer}>
-            Kitnet Energia v1.0 · Acesso restrito ao síndico
+            Minha Kitnet v1.0 · Acesso restrito ao síndico
           </Text>
 
         </View>
